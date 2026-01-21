@@ -80,9 +80,6 @@ if (Astro.request.method === "POST") {
          />
       </span>
       
-      <!-- Captcha -->
-      <div class="my-3 g-recaptcha" data-sitekey={import.meta.env.CapchaSiteKey}></div>
-      
       <span class="flex items-center lg:gap-7 gap-5">
          <button
             id="loginBtn" type="submit"
@@ -93,5 +90,4 @@ if (Astro.request.method === "POST") {
       </span>
    </form>
 </AdminAuthLayout>
-<script is:inline src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script is:inline src="/assets/scripts/main.js"></script>

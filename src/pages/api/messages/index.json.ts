@@ -65,101 +65,62 @@ export const POST: APIRoute = async ({ request }) => {
         );
     }
 
-    //#region Captcha Verification
-    const recaptchaURL = 'https://www.google.com/recaptcha/api/siteverify';
-    const requestHeaders = {
-        'Content-Type': 'application/x-www-form-urlencoded'
-    };
-    const requestBody = new URLSearchParams({
-        secret: import.meta.env.CapchaSecretKey,   // This can be an environment variable
-        response: data.get("g-recaptcha-response")?.toString() || ""          // The token passed in from the client
+    // Save the message to database
+    const record = await xata.db.contact_msgs.create({
+        username: data.get("contact_name")?.toString(),
+        email: data.get("contact_email")?.toString(),
+        message: data.get("contact_msg")?.toString(),
     });
 
-    const response = await fetch(recaptchaURL, {
-        method: "POST",
-        headers: requestHeaders,
-        body: requestBody.toString()
-    });
-
-    const responseData = await response.json();
-    // console.log("Captcha Response- ", responseData);
-    //#endregion
-    
-    // Do something with the data, then return a success response
-
-    if (!responseData.success) {
-        //IF ReCaptcha Fails
-        return new Response(JSON.stringify({
-            message: "reCAPTCHA verification failed",
-            captchaRes : responseData,
-            'error-codes': responseData['error-codes'],
-            status: 400,
-        }), {
-            status: 400,
-            headers: {
-                'Content-Type': 'application/json'
+    if (record.id) {
+        const emailParams = {
+            service_id: import.meta.env.PUBLIC_AUTORespond_SERVICE_ID,
+            template_id: import.meta.env.PUBLIC_AUTORespond_TEMPLATE_ID,
+            user_id: import.meta.env.PUBLIC_ForgotPass_PUBLICKEY,
+            accessToken: import.meta.env.PUBLIC_ForgotPass_PRIVATEKEY,
+            template_params: {
+                from_name : emailConfig.emailFrom,
+                Subject_Line : emailConfig.emailSubject,
+                mail_Content : JSONConvertToHTML(JSON.stringify(emailConfig.emailContent)).replaceAll("{{to_name}}", data.get("contact_name")?.toString() || ""),
+                to_email: data.get("contact_email")?.toString(),
             }
-        })
-    }
-    else {
-        // IF Recaptcha and Credentials are verified
-        const record = await xata.db.contact_msgs.create({
-            username: data.get("contact_name")?.toString(),
-            email: data.get("contact_email")?.toString(),
-            message: data.get("contact_msg")?.toString(),
-        });
-        // console.log("message saved in DB- ",record.id);
-        
-        if (record.id) {
-            const emailParams = {
-                service_id: import.meta.env.PUBLIC_AUTORespond_SERVICE_ID,
-                template_id: import.meta.env.PUBLIC_AUTORespond_TEMPLATE_ID,
-                user_id: import.meta.env.PUBLIC_ForgotPass_PUBLICKEY,
-                accessToken: import.meta.env.PUBLIC_ForgotPass_PRIVATEKEY,
-                template_params: {
-                    from_name : emailConfig.emailFrom,
-                    Subject_Line : emailConfig.emailSubject,
-                    mail_Content : JSONConvertToHTML(JSON.stringify(emailConfig.emailContent)).replaceAll("{{to_name}}", data.get("contact_name")?.toString() || ""),
-                    to_email: data.get("contact_email")?.toString(),
-                }
-            };
+        };
 
-            let respondMessage="";
-            try {
-                const emailJSresponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(emailParams),
-                });
-                console.log(emailJSresponse);
-                
-                if (emailJSresponse.ok) {
-                    console.log('SUCCESS!', emailJSresponse, emailJSresponse.status, emailJSresponse.text);
-                    respondMessage = "Message Saved into Database and Email is Sent."
-                } else {
-                    const error = await emailJSresponse.json();
-                    console.log('FAILED...', error);
-                    respondMessage = "Message Saved into Database and Email is not Sent."
-                }
-            } 
-            catch (error) {
-                console.log("Email JS error-", error);
+        let respondMessage="";
+        try {
+            const emailJSresponse = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(emailParams),
+            });
+            console.log(emailJSresponse);
+
+            if (emailJSresponse.ok) {
+                console.log('SUCCESS!', emailJSresponse, emailJSresponse.status, emailJSresponse.text);
+                respondMessage = "Message Saved into Database and Email is Sent."
+            } else {
+                const error = await emailJSresponse.json();
+                console.log('FAILED...', error);
+                respondMessage = "Message Saved into Database and Email is not Sent."
             }
-
-            return new Response(JSON.stringify({ message: respondMessage }),
-                { headers, status: 200 }
-            );
         }
-        else
-            return new Response(
-                JSON.stringify({
-                    message: "Data saving Error!"
-                }),
-                { status: 300 }
-            );
+        catch (error) {
+            console.log("Email JS error-", error);
+        }
+
+        return new Response(JSON.stringify({ message: respondMessage }),
+            { headers, status: 200 }
+        );
     }
+    else
+        return new Response(
+            JSON.stringify({
+                message: "Data saving Error!"
+            }),
+            { status: 300 }
+        );
 };
 
 /* export const PUT: APIRoute = async ({ request }) => {
